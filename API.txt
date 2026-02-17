@@ -1,0 +1,148 @@
+/************************************************************
+ * Two Design RSVP API (Google Apps Script)
+ * Hoja requerida: "RSVP"
+ * Columnas: guestId | nombre | pases | respuesta | timestamp
+ ************************************************************/
+
+const SHEET_NAME = "RSVP";
+
+/**
+ * GET → verificar si ya confirmó
+ * Ejemplo: /exec?guestId=1
+ */
+function doGet(e) {
+  try {
+    const guestId = (e && e.parameter && e.parameter.guestId) ? String(e.parameter.guestId) : "";
+
+    if (!guestId) {
+      return json({
+        ok: false,
+        message: "Falta guestId."
+      });
+    }
+
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME);
+    if (!sheet) {
+      return json({
+        ok: false,
+        message: `No existe la hoja "${SHEET_NAME}". Cree/renombre una hoja llamada RSVP.`
+      });
+    }
+
+    const values = sheet.getDataRange().getValues();
+
+    const alreadyConfirmed = values.some((row, index) =>
+      index > 0 && String(row[0]) === guestId
+    );
+
+    return json({
+      ok: true,
+      alreadyConfirmed
+    });
+
+  } catch (error) {
+    return json({
+      ok: false,
+      message: "Error en doGet",
+      error: String(error)
+    });
+  }
+}
+
+/**
+ * POST → guardar confirmación (una sola vez)
+ * Acepta:
+ * - application/x-www-form-urlencoded
+ * - JSON (opcional)
+ */
+function doPost(e) {
+  try {
+    let guestId, nombre, pases, respuesta;
+
+    // 1) Si viene como form-urlencoded
+    if (e && e.parameter && Object.keys(e.parameter).length) {
+      guestId = e.parameter.guestId;
+      nombre = e.parameter.nombre;
+      pases = e.parameter.pases;
+      respuesta = e.parameter.respuesta;
+    }
+    // 2) Si viene como JSON
+    else if (e && e.postData && e.postData.contents) {
+      const data = JSON.parse(e.postData.contents);
+      guestId = data.guestId;
+      nombre = data.nombre;
+      pases = data.pases;
+      respuesta = data.respuesta;
+    }
+
+    guestId = guestId ? String(guestId) : "";
+    respuesta = respuesta ? String(respuesta).toUpperCase() : "";
+
+    if (!guestId || !respuesta) {
+      return json({
+        ok: false,
+        message: "Datos incompletos. Se requiere guestId y respuesta."
+      });
+    }
+
+    if (respuesta !== "SI" && respuesta !== "NO") {
+      return json({
+        ok: false,
+        message: "Respuesta inválida. Use SI o NO."
+      });
+    }
+
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME);
+    if (!sheet) {
+      return json({
+        ok: false,
+        message: `No existe la hoja "${SHEET_NAME}". Cree/renombre una hoja llamada RSVP.`
+      });
+    }
+
+    const values = sheet.getDataRange().getValues();
+
+    // Evitar doble confirmación por guestId
+    const alreadyConfirmed = values.some((row, index) =>
+      index > 0 && String(row[0]) === guestId
+    );
+
+    if (alreadyConfirmed) {
+      return json({
+        ok: false,
+        code: "ALREADY_CONFIRMED",
+        message: "Ya has confirmado tu asistencia."
+      });
+    }
+
+    // Guardar fila: guestId | nombre | pases | respuesta | timestamp
+    sheet.appendRow([
+      guestId,
+      nombre ? String(nombre) : "",
+      Number(pases) || 1,
+      respuesta,
+      new Date()
+    ]);
+
+    return json({
+      ok: true,
+      message: "¡Gracias! Tu confirmación quedó registrada."
+    });
+
+  } catch (error) {
+    return json({
+      ok: false,
+      message: "Error en doPost",
+      error: String(error)
+    });
+  }
+}
+
+/**
+ * Respuesta JSON
+ */
+function json(obj) {
+  return ContentService
+    .createTextOutput(JSON.stringify(obj))
+    .setMimeType(ContentService.MimeType.JSON);
+}

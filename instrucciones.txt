@@ -1,0 +1,15 @@
+✅ Cómo publicarlo (para que funcione el link /exec)
+
+En Apps Script:
+
+Implementar → Nueva implementación
+
+Tipo: Aplicación web
+
+Ejecutar como: Usted
+
+Acceso: Cualquiera
+
+Implementar
+
+Copiar el link que termina en /exec → ese es tu RSVP_ENDPOINT
